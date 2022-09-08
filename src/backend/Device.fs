@@ -5,6 +5,11 @@ module Device =
     open System.Dynamic
     open Newtonsoft.Json
     open FsToolkit.ErrorHandling
+
+    type DeviceIdentification = {
+        MacAddress: string
+        OrganisationId: Guid
+    }
     
     type RemoteCommand = {
         /// <summary>

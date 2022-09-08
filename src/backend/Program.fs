@@ -16,47 +16,18 @@ open Giraffe
 open FsToolkit.ErrorHandling
 open Newtonsoft.Json
 
-// ---------------------------------
-// Utilities
-// ---------------------------------
-
-type DeviceIdentification = {
-    MacAddress: string
-    OrganisationId: Guid
-}
-
 let private deviceAccessTokenFile = "device_access_tokens.json"
 let DeviceAccessTokens =
     if deviceAccessTokenFile |> File.Exists then
         try
-            deviceAccessTokenFile |> File.ReadAllText |> System.Text.Json.JsonSerializer.Deserialize<ImmutableDictionary<string, DeviceIdentification>>
+            deviceAccessTokenFile |> File.ReadAllText |> System.Text.Json.JsonSerializer.Deserialize<ImmutableDictionary<string, Device.DeviceIdentification>>
         with
         | :? System.Text.Json.JsonException as ex ->
             failwithf $"The device access token file '%s{deviceAccessTokenFile}' is corrupt. Reason: %s{Environment.NewLine}%s{ex.Message}"
     else
         printfn $"The device access token file '%s{deviceAccessTokenFile}' could not be found. Creating a new dictionary."
-        ImmutableDictionary<string, DeviceIdentification>.Empty
+        ImmutableDictionary<string, Device.DeviceIdentification>.Empty
         
-// ---------------------------------
-// Models
-// ---------------------------------
-
-type FirmwareVersionRequest = {
-    OrganisationId: string
-}
-
-type FirmwareVersionResult = {
-    Name: string
-    Timestamp: DateTime
-    Hash: string
-    Url: string
-}
-
-type StatusUpdateResult = {
-    Firmware: FirmwareVersionResult
-    //OutstandingCommands: RemoteCommand list
-}
-
 // ---------------------------------
 // Web app
 // ---------------------------------
