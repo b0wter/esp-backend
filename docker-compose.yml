@@ -1,0 +1,29 @@
+version: '3'
+services:
+  couchdb:
+    image: "couchdb:latest" 
+    hostname: couchdb
+    environment:
+      COUCHDB_USER: ${DBUSER}
+      COUCHDB_PASSWORD: ${DBPASSWORD}
+    volumes:
+      - couchdb-data:/opt/couchdb/data
+  backend:
+    image: "esp-backend:latest"
+    ports:
+      - 8080:80
+      - 4330:433
+    links:
+      - couchdb
+    environment:
+      ASPNETCORE_ENVIRONMENT: production
+      COUCHDB__USERNAME: ${DBUSER}
+      COUCHDB__PASSWORD: ${DBPASSWORD}
+      COUCHDB__HOST: couchdb
+      COUCHDB__PORT: ${DBPORT}
+      COUCHDB__DEVICES: devices
+      COUCHDB__ORGANIZATIONS: organizations
+
+volumes:
+  couchdb-data:
+    external: true
