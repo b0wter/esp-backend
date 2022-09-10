@@ -5,16 +5,20 @@ open System.Collections.Immutable
 open System.Dynamic
 open System.IO
 open System.Threading.Tasks
+open Gerlinde.Esp.Backend
+open Gerlinde.Shared.Repository
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
 open Microsoft.AspNetCore.Http
+open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open FsToolkit.ErrorHandling
 open Newtonsoft.Json
+open Gerlinde.Shared.Lib
 
 let private deviceAccessTokenFile = "device_access_tokens.json"
 let DeviceAccessTokens =
@@ -108,10 +112,10 @@ let mapErrorToResponse (ctx: HttpContext) (result: Task<Result<HttpContext optio
 let registrationHandler (registration : Device.DeviceRegistrationRequest) : HttpHandler =
     fun (_: HttpFunc) (ctx: HttpContext) ->
         taskResult {
-            let deviceToken = (Utilities.generateToken 64)
-            let device = Device.fromRegistration registration deviceToken
             let repo = ctx.GetService<CouchDb.C>()
             let! organization = registration.OrganisationAccessToken |> repo.FindOrganizationByAccessToken
+            let deviceToken = (Utilities.generateToken 64)
+            let device = Device.fromRegistration registration deviceToken
             do! repo.RegisterDevice organization.Id device |> AsyncResult.ignore
             do ctx.SetStatusCode 201
             return! ctx.WriteTextAsync deviceToken
@@ -225,6 +229,15 @@ let errorHandler (ex : Exception) (logger : ILogger) =
 // Config and Main
 // ---------------------------------
 
+type DataBaseConfiguration(config: IConfiguration) =
+    interface CouchDb.IDatabaseConfiguration with
+        member this.Host = config.GetSection("CouchDb").GetValue<string>("Host")
+        member this.Port = config.GetSection("CouchDb").GetValue<int>("Port")
+        member this.DeviceDatabaseName = config.GetSection("CouchDb").GetValue<string>("Devices")
+        member this.OrganizationDatabaseName = config.GetSection("CouchDb").GetValue<string>("Organizations")
+        member this.Username = config.GetSection("CouchDb").GetValue<string>("Username")
+        member this.Password = config.GetSection("CouchDb").GetValue<string>("Password")
+
 let configureCors (builder : CorsPolicyBuilder) =
     builder
         .WithOrigins(
@@ -251,8 +264,11 @@ let configureServices (services : IServiceCollection) =
     services.AddGiraffe() |> ignore
     services.AddSingleton<CouchDb.C>() |> ignore
     let customJsonSettings = JsonSerializerSettings(NullValueHandling = NullValueHandling.Ignore)
+    do customJsonSettings.Converters.Add(FifteenBelow.Json.OptionConverter() :> JsonConverter)
+    do customJsonSettings.Converters.Add(FifteenBelow.Json.UnionConverter() :> JsonConverter)
     services.AddSingleton<Json.ISerializer>(
         NewtonsoftJson.Serializer(customJsonSettings)) |> ignore
+    services.AddSingleton<CouchDb.IDatabaseConfiguration, DataBaseConfiguration>() |> ignore
 
 let configureLogging (builder : ILoggingBuilder) =
     builder.AddConsole()

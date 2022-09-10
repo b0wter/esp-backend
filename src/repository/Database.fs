@@ -1,22 +1,29 @@
-namespace Gerlinde.Esp.Backend
+namespace Gerlinde.Shared.Repository
 
-open Gerlinde.Esp.Backend
-open Microsoft.Extensions.Configuration
 open b0wter.CouchDb.Lib
 open b0wter.CouchDb.Lib.DbProperties
 open b0wter.CouchDb.Lib.Mango
 open FsToolkit.ErrorHandling
+open Gerlinde.Shared.Lib
+open Gerlinde.Shared.Repository
 
 module CouchDb =
     
-    type C (configuration: IConfiguration) =
-        let host = configuration.GetSection("CouchDb").GetValue<string>("Host")
-        let port = configuration.GetSection("CouchDb").GetValue<int>("Port")
-        let deviceDb = configuration.GetSection("CouchDb").GetValue<string>("Devices")
-        let organizationDb = configuration.GetSection("CouchDb").GetValue<string>("Organizations")
-        let userDb = configuration.GetSection("CouchDb").GetValue<string>("Credentials")
-        let user = configuration.GetSection("CouchDb").GetValue<string>("Username")
-        let password = configuration.GetSection("CouchDb").GetValue<string>("Password")
+    type IDatabaseConfiguration =
+        abstract member Host : string
+        abstract member Port : int
+        abstract member DeviceDatabaseName : string
+        abstract member OrganizationDatabaseName : string
+        abstract member Username : string
+        abstract member Password : string
+    
+    type C (configuration: IDatabaseConfiguration) =
+        let host = configuration.Host
+        let port = configuration.Port
+        let deviceDb = configuration.DeviceDatabaseName
+        let organizationDb = configuration.OrganizationDatabaseName
+        let user = configuration.Username
+        let password = configuration.Password
         let credentials = Credentials.create(user, password)
         let dbProps = 
           do printfn
@@ -45,6 +52,7 @@ module CouchDb =
             else None
         
         let applyJsonSettings () =
+            do Json.converters.Add(FifteenBelow.Json.OptionConverter() :> Newtonsoft.Json.JsonConverter)
             do Json.converters.Add(FifteenBelow.Json.UnionConverter() :> Newtonsoft.Json.JsonConverter)
         do applyJsonSettings()
 
@@ -86,7 +94,7 @@ module CouchDb =
                 let selector = combination <| ElementMatch (elementSelector, "accessTokens")
                 let expression = selector |> createExpressionWithLimit 2
                 let! result =
-                    Databases.Find.queryAsResult<Organization.Organization> dbProps organizationDb expression
+                    Databases.Find.queryAsResultWithOutput<Organization.OrganizationEntity> dbProps organizationDb expression
                     |> AsyncResult.mapError ErrorRequestResult.textAsString
                 match result.Docs |> List.tryExactlyOne with
                 | Some x -> return! Ok x
@@ -121,7 +129,7 @@ module CouchDb =
             registerDevice dbProps organizationId device
             
         member this.FindOrganizationByAccessToken token =
-            findOrganizationByAccessToken dbProps token
+            findOrganizationByAccessToken dbProps token |> AsyncResult.map Organization.fromEntity
             
         member this.FindDeviceByAccessToken token =
             findDeviceByDeviceToken dbProps token |> AsyncResult.map Device.fromEntity

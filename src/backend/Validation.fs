@@ -4,6 +4,7 @@ open System.Dynamic
 open Gerlinde.Esp.Backend.Device
 open FsToolkit.ErrorHandling
 open System
+open Gerlinde.Shared.Lib.Device
 
 module Validation =
 

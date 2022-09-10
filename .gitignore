@@ -41,3 +41,4 @@ appsettings.*.json
 **/appsettings*json
 
 .fake
+.env

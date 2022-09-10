@@ -4,6 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>Gerlinde.Esp.Backend.App</AssemblyName>
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,15 +25,21 @@
     <Compile Include="Device.fs" />
     <Compile Include="Organization.fs" />
     <Compile Include="Validation.fs" />
-    <Compile Include="Database.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include=".dockerignore" />
     <Content Include="appsettings.json" />
+    <Content Include="Dockerfile" />
     <None Include="web.config" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="WebRoot\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\lib\Gerlinde.Shared.Lib.fsproj" />
+    <ProjectReference Include="..\repository\Gerlinde.Shared.Repository.fsproj" />
   </ItemGroup>
 </Project>
