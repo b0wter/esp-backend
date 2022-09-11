@@ -2,16 +2,19 @@ module Gerlinde.Portal.Backend.App
 
 open System
 open System.IO
+open Gerlinde.Shared.Repository
 open Gerlinde.Shared.WebApi
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
 open Microsoft.AspNetCore.Http
+open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open FsToolkit.ErrorHandling
+open Newtonsoft.Json
 
 // ---------------------------------
 // Web app
@@ -28,9 +31,11 @@ let webApp =
     choose [
         GET >=>
             choose [
-                route "/register" >=> defaultBindJson Register.validatePayload Register.handler
                 route "/login" >=> defaultBindJson Login.validatePayload Login.handler
-                route "/logout" >=> failwith "not implemented"
+            ]
+        POST >=>
+            choose [
+                route "/register" >=> defaultBindJson Register.validatePayload Register.handler
             ]
         setStatusCode 404 >=> text "Not Found" ]
 
@@ -45,6 +50,14 @@ let errorHandler (ex : Exception) (logger : ILogger) =
 // ---------------------------------
 // Config and Main
 // ---------------------------------
+type DataBaseConfiguration(config: IConfiguration) =
+    interface CouchDb.IDatabaseConfiguration with
+        member this.Host = config.GetSection("CouchDb").GetValue<string>("Host")
+        member this.Port = config.GetSection("CouchDb").GetValue<int>("Port")
+        member this.DeviceDatabaseName = config.GetSection("CouchDb").GetValue<string>("Devices")
+        member this.OrganizationDatabaseName = config.GetSection("CouchDb").GetValue<string>("Organizations")
+        member this.Username = config.GetSection("CouchDb").GetValue<string>("Username")
+        member this.Password = config.GetSection("CouchDb").GetValue<string>("Password")
 
 let configureCors (builder : CorsPolicyBuilder) =
     builder
@@ -70,6 +83,13 @@ let configureApp (app : IApplicationBuilder) =
 let configureServices (services : IServiceCollection) =
     services.AddCors()    |> ignore
     services.AddGiraffe() |> ignore
+    services.AddSingleton<CouchDb.C>() |> ignore
+    let customJsonSettings = JsonSerializerSettings(NullValueHandling = NullValueHandling.Ignore)
+    do customJsonSettings.Converters.Add(FifteenBelow.Json.OptionConverter() :> JsonConverter)
+    do customJsonSettings.Converters.Add(FifteenBelow.Json.UnionConverter() :> JsonConverter)
+    services.AddSingleton<Json.ISerializer>(
+        NewtonsoftJson.Serializer(customJsonSettings)) |> ignore
+    services.AddSingleton<CouchDb.IDatabaseConfiguration, DataBaseConfiguration>() |> ignore
 
 let configureLogging (builder : ILoggingBuilder) =
     builder.AddConsole()

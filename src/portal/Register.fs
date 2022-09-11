@@ -34,7 +34,7 @@ module Register =
                     (fun chars -> chars |> Array.exists Char.IsDigit), "Password does not contain digit"
                     (fun chars -> chars |> Array.exists Char.IsUpper), "Password does not contain upper case letter"
                     (fun chars -> chars |> Array.exists Char.IsLower), "Password does not cntain lower case letter"
-                    (fun chars -> chars |> Array.exists Char.IsSymbol), "Password does not contain symbol"
+                    (fun chars -> chars |> Array.exists (fun c -> Char.IsSymbol(c) || (not <| Char.IsDigit(c) && not <| Char.IsNumber(c)))), "Password does not contain symbol"
                 ]
                 let chars = s.ToCharArray()
                 
