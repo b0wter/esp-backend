@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>Gerlinde.Shared.Authentication</AssemblyName>
+    <RootNamespace>Gerlinde.Shared.Authentication</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Password.fs" />
+    <Compile Include="Hashing.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Cryptography.KeyDerivation" Version="3.1.4" />
+  </ItemGroup>
+</Project>

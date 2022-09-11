@@ -1,24 +1,25 @@
 module Gerlinde.Esp.Backend.App
 
-open System
-open System.Collections.Immutable
-open System.Dynamic
-open System.IO
-open System.Threading.Tasks
+open FsToolkit.ErrorHandling
 open Gerlinde.Esp.Backend
+open Gerlinde.Shared.Lib
 open Gerlinde.Shared.Repository
+open Gerlinde.Shared.WebApi
+open Giraffe
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Configuration
+open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
-open Microsoft.Extensions.DependencyInjection
-open Giraffe
-open FsToolkit.ErrorHandling
 open Newtonsoft.Json
-open Gerlinde.Shared.Lib
+open System
+open System.Collections.Immutable
+open System.Dynamic
+open System.IO
+open System.Threading.Tasks
 
 let private deviceAccessTokenFile = "device_access_tokens.json"
 let DeviceAccessTokens =
@@ -35,46 +36,6 @@ let DeviceAccessTokens =
 // ---------------------------------
 // Web app
 // ---------------------------------
-let tryBindJson<'T> (parsingErrorHandler: string -> HttpHandler) (validator: 'T -> Validation<'T, string>) (successHandler: 'T -> HttpHandler): HttpHandler =
-    let inline isNullMatch value = obj.ReferenceEquals(value, null)
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-                try
-                    let! model = ctx.BindJsonAsync<'T>()
-                    if model |> isNullMatch then
-                        return! parsingErrorHandler "The request body is empty" next ctx
-                    else
-                        match model |> validator with
-                        | Validation.Ok t ->
-                            return! successHandler t next ctx
-                        | Validation.Error errors ->
-                            let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
-                            return! parsingErrorHandler errorMessage next ctx
-                with ex ->
-                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
-                    return! parsingErrorHandler errorMessage next ctx
-            }
-
-let tryBindJsonWithExtra<'T, 'U> (parsingErrorHandler: string -> HttpHandler) (validator: 'T -> Validation<'T, string>) (successHandler: 'T -> 'U -> HttpHandler) (extra: 'U): HttpHandler =
-    let inline isNullMatch value = obj.ReferenceEquals(value, null)
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-                try
-                    let! model = ctx.BindJsonAsync<'T>()
-                    if model |> isNullMatch then
-                        return! parsingErrorHandler "The request body is empty" next ctx
-                    else
-                        match model |> validator with
-                        | Validation.Ok t ->
-                            return! successHandler t extra next ctx
-                        | Validation.Error errors ->
-                            let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
-                            return! parsingErrorHandler errorMessage next ctx
-                with ex ->
-                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
-                    return! parsingErrorHandler errorMessage next ctx
-            }
-        
 let mustBeAuthenticatedDevice (successHandler: (Device.Device * Guid) -> HttpHandler) : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
         task {
@@ -96,18 +57,9 @@ let mustBeAuthenticatedDevice (successHandler: (Device.Device * Guid) -> HttpHan
 let jsonParsingError message =
     setStatusCode 400 >=> json message
     
-let defaultBindJson = tryBindJson jsonParsingError
+let defaultBindJson<'a> = Json.tryBindJson<'a> jsonParsingError
 
-let defaultBindJsonWithArg<'a, 'b> = tryBindJsonWithExtra<'a, 'b> jsonParsingError
-
-let mapErrorToResponse (ctx: HttpContext) (result: Task<Result<HttpContext option, string>>) : Task<HttpContext option> =
-    task {
-        match! result with
-        | Ok o -> return o
-        | Error e ->
-            ctx.SetStatusCode 500
-            return! ctx.WriteTextAsync e
-    }
+let defaultBindJsonWithArg<'a, 'b> = Json.tryBindJsonWithExtra<'a, 'b> jsonParsingError
 
 let registrationHandler (registration : Device.DeviceRegistrationRequest) : HttpHandler =
     fun (_: HttpFunc) (ctx: HttpContext) ->
@@ -120,7 +72,7 @@ let registrationHandler (registration : Device.DeviceRegistrationRequest) : Http
             do ctx.SetStatusCode 201
             return! ctx.WriteTextAsync deviceToken
         }
-        |> mapErrorToResponse ctx
+        |> Handler.mapErrorToResponse ctx
 
 let getLatestFirmwareVersion (device: Device.Device, _) : HttpHandler =
     fun (_: HttpFunc) (ctx: HttpContext) ->
@@ -171,7 +123,7 @@ let markCommandsFinished (commands: Device.RemoteCommandResult list) (device: De
             let! _ = repo.SaveDevice (updatedDevice, organizationId)
             return! next ctx
         }
-        |> mapErrorToResponse ctx
+        |> Handler.mapErrorToResponse ctx
 
 let addStatusUpdate (status: ExpandoObject) (device: Device.Device, organizationId: Guid) : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
@@ -183,7 +135,7 @@ let addStatusUpdate (status: ExpandoObject) (device: Device.Device, organization
             let latestFirmware = updatedDevice |> Device.latestAvailableFirmware
             return! ctx.WriteJsonAsync({| OutstandingCommands = updatedDevice.OutstandingCommands; Firmware = latestFirmware |})
         }
-        |> mapErrorToResponse ctx
+        |> Handler.mapErrorToResponse ctx
     
 let updateDevice (update: Device.DeviceUpdate) (device: Device.Device, organizationId: Guid) : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
@@ -195,7 +147,7 @@ let updateDevice (update: Device.DeviceUpdate) (device: Device.Device, organizat
             let! _ = repo.SaveDevice (updatedDevice, organizationId)
             return! next ctx
         }
-        |> mapErrorToResponse ctx
+        |> Handler.mapErrorToResponse ctx
     
 
 let webApp =

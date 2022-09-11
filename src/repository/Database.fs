@@ -1,5 +1,6 @@
 namespace Gerlinde.Shared.Repository
 
+open System
 open b0wter.CouchDb.Lib
 open b0wter.CouchDb.Lib.DbProperties
 open b0wter.CouchDb.Lib.Mango
@@ -39,16 +40,26 @@ module CouchDb =
           | HostIsEmpty -> failwith "The CouchDb parameter 'Host' is missing."
           | PortIsInvalid -> failwith "The CouchDb parameter 'Port' is invalid."
           
-        // Caches the latest revisions for the devices retreieved from the database
+        // Caches the latest revisions for the devices/organizations retrieved from the database
         let deviceRevisionTable = System.Collections.Concurrent.ConcurrentDictionary<string, string>()
+        let organizationRevisionTable = System.Collections.Concurrent.ConcurrentDictionary<Guid, string>()
 
         let tryUpdateDeviceRevisionTable (id: string) (rev: string option) =
             match rev with
             | Some revision -> do deviceRevisionTable[id] <- revision
             | None -> ()
         
+        let tryUpdateOrganizationRevisionTable (id: Guid) (rev: string option) =
+            match rev with
+            | Some revision -> do organizationRevisionTable[id] <- revision
+            | None -> ()
+        
         let tryGetFromDeviceRevisionTable (entity: Device.DeviceEntity) =
             if deviceRevisionTable.ContainsKey entity.DatabaseId then Some deviceRevisionTable[entity.DatabaseId]
+            else None
+        
+        let tryGetFromOrganizationRevisionTable (entity: Organization.OrganizationEntity) =
+            if organizationRevisionTable.ContainsKey entity.Id then Some organizationRevisionTable[entity.Id]
             else None
         
         let applyJsonSettings () =
@@ -94,7 +105,7 @@ module CouchDb =
                 let selector = combination <| ElementMatch (elementSelector, "accessTokens")
                 let expression = selector |> createExpressionWithLimit 2
                 let! result =
-                    Databases.Find.queryAsResultWithOutput<Organization.OrganizationEntity> dbProps organizationDb expression
+                    Databases.Find.queryAsResult<Organization.OrganizationEntity> dbProps organizationDb expression
                     |> AsyncResult.mapError ErrorRequestResult.textAsString
                 match result.Docs |> List.tryExactlyOne with
                 | Some x -> return! Ok x
@@ -121,10 +132,32 @@ module CouchDb =
             Documents.Put.queryAsResult<Device.DeviceEntity> dbProps deviceDb (fun e -> e.DatabaseId) tryGetFromDeviceRevisionTable entity
             |> AsyncResult.mapError ErrorRequestResult.textAsString
             |> AsyncResult.map
-                   (fun r ->
-                        do deviceRevisionTable[r.Id] <- r.Rev
-                        {| Id = r.Id; Rev = r.Rev |})
+                (fun r ->
+                    do deviceRevisionTable[r.Id] <- r.Rev
+                    {| Id = r.Id; Rev = r.Rev |})
+                   
+        let findOrganizationByEmail dbProps email =
+            let expression = condition "email" (Equal <| Text email) |> createExpressionWithLimit 2
+            Databases.Find.queryAsResult<Organization.OrganizationEntity> dbProps organizationDb expression
+            |> AsyncResult.mapError ErrorRequestResult.textAsString
+            |> Async.map (Result.bind
+                (fun r ->
+                    match r.Docs with
+                    | [ ] ->  Error "Found no organization for the given email address"
+                    | [ head ] ->
+                        do tryUpdateOrganizationRevisionTable head.Id head.Revision
+                        Ok head
+                    | _ -> Error "Found multiple organizations for the given email laddress"
+                ))
             
+        let saveOrganization dbProps entity =
+            Documents.Put.queryAsResult<Organization.OrganizationEntity> dbProps organizationDb (fun e -> e.Id |> string) tryGetFromOrganizationRevisionTable entity
+            |> AsyncResult.mapError ErrorRequestResult.textAsString
+            |> AsyncResult.map
+                (fun r ->
+                    do organizationRevisionTable[Guid.Parse(r.Id)] <- r.Rev
+                    {| Id = r.Id; Rev = r.Rev |})
+                
         member this.RegisterDevice organizationId device =
             registerDevice dbProps organizationId device
             
@@ -137,3 +170,10 @@ module CouchDb =
         member this.SaveDevice (device, organizationId) : Async<Result<{| Id: string; Rev: string |}, string>> =
             let entity = device |> (Device.toEntity organizationId)
             saveDevice dbProps entity
+            
+        member this.FindOrganizationByEmail email =
+            findOrganizationByEmail dbProps email |> AsyncResult.map Organization.fromEntity
+            
+        member this.SaveOrganization organization : Async<Result<{| Id: string; Rev: string |}, string>> =
+            let entity = organization |> Organization.toEntity
+            saveOrganization dbProps entity

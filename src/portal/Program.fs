@@ -2,66 +2,35 @@ module Gerlinde.Portal.Backend.App
 
 open System
 open System.IO
+open Gerlinde.Shared.WebApi
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
+open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
-
-// ---------------------------------
-// Models
-// ---------------------------------
-
-type Message =
-    {
-        Text : string
-    }
-
-// ---------------------------------
-// Views
-// ---------------------------------
-
-module Views =
-    open Giraffe.ViewEngine
-
-    let layout (content: XmlNode list) =
-        html [] [
-            head [] [
-                title []  [ encodedText "Gerlinde.Portal.Backend" ]
-                link [ _rel  "stylesheet"
-                       _type "text/css"
-                       _href "/main.css" ]
-            ]
-            body [] content
-        ]
-
-    let partial () =
-        h1 [] [ encodedText "Gerlinde.Portal.Backend" ]
-
-    let index (model : Message) =
-        [
-            partial()
-            p [] [ encodedText model.Text ]
-        ] |> layout
+open FsToolkit.ErrorHandling
 
 // ---------------------------------
 // Web app
 // ---------------------------------
 
-let indexHandler (name : string) =
-    let greetings = sprintf "Hello %s, from Giraffe!" name
-    let model     = { Text = greetings }
-    let view      = Views.index model
-    htmlView view
+let jsonParsingError message =
+    setStatusCode 400 >=> json message
+    
+let defaultBindJson<'a> = Json.tryBindJson<'a> jsonParsingError
+
+let defaultBindJsonWithArg<'a, 'b> = Json.tryBindJsonWithExtra<'a, 'b> jsonParsingError
 
 let webApp =
     choose [
         GET >=>
             choose [
-                route "/" >=> indexHandler "world"
-                routef "/hello/%s" indexHandler
+                route "/register" >=> defaultBindJson Register.validatePayload Register.handler
+                route "/login" >=> defaultBindJson Login.validatePayload Login.handler
+                route "/logout" >=> failwith "not implemented"
             ]
         setStatusCode 404 >=> text "Not Found" ]
 

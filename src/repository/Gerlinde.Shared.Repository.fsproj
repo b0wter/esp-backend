@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\authentication\Gerlinde.Shared.Authentication.fsproj" />
     <ProjectReference Include="..\lib\Gerlinde.Shared.Lib.fsproj" />
   </ItemGroup>
 

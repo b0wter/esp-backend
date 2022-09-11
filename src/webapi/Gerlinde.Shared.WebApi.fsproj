@@ -6,17 +6,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Utilities.fs" />
-    <Compile Include="Device.fs" />
-    <Compile Include="Organization.fs" />
+    <Compile Include="Json.fs" />
+    <Compile Include="Handler.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FsToolkit.ErrorHandling" Version="2.13.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\authentication\Gerlinde.Shared.Authentication.fsproj" />
+    <PackageReference Include="Giraffe" Version="6.0.0" />
   </ItemGroup>
 
 </Project>
