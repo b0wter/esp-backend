@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="b0wter.CouchDb" Version="8.2.1" />
     <PackageReference Include="FsToolkit.ErrorHandling" Version="2.13.0" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.13.0" />
     <PackageReference Include="Giraffe" Version="6.0.0" />
@@ -16,8 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Logout.fs" />
     <Compile Include="Register.fs" />
     <Compile Include="Login.fs" />
+    <Compile Include="Devices.fs" />
+    <Compile Include="Organization.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

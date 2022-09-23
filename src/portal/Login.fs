@@ -28,7 +28,7 @@ module Login =
         }
     
     let handler (payload: Payload) : HttpHandler =
-        fun (next: HttpFunc) (ctx: HttpContext) ->
+        fun (_: HttpFunc) (ctx: HttpContext) ->
             taskResult {
                 let repo = ctx.GetService<CouchDb.C>()
                 let! organization = repo.FindOrganizationByEmail payload.Email

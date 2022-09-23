@@ -2,6 +2,7 @@ module Gerlinde.Portal.Backend.App
 
 open System
 open System.IO
+open Gerlinde.Shared.Lib
 open Gerlinde.Shared.Repository
 open Gerlinde.Shared.WebApi
 open Microsoft.AspNetCore.Builder
@@ -19,6 +20,23 @@ open Newtonsoft.Json
 // ---------------------------------
 // Web app
 // ---------------------------------
+let mustBeAuthenticated (successHandler: (Organization.Organization * string) -> HttpHandler) : HttpHandler =
+    fun (next: HttpFunc) (ctx: HttpContext) ->
+        task {
+            match ctx.Request.Headers.Authorization |> Seq.tryHead with
+            | Some token ->
+                let token = token.Substring(6).TrimEnd().TrimStart()
+                let repo = ctx.GetService<CouchDb.C>()
+                match! repo.FindOrganizationByAccessToken token with
+                | Ok org ->
+                    return! successHandler (org, token) next ctx
+                | Error e ->
+                    do ctx.SetStatusCode 401
+                    return! ctx.WriteTextAsync e
+            | None ->
+                ctx.SetStatusCode 401
+                return! ctx.WriteTextAsync "The request is missing the bearer token"
+        }
 
 let jsonParsingError message =
     setStatusCode 400 >=> json message
@@ -32,6 +50,9 @@ let webApp =
         GET >=>
             choose [
                 route "/login" >=> defaultBindJson Login.validatePayload Login.handler
+                route "/logout" >=> mustBeAuthenticated Logout.handler
+                route "/devices" >=> mustBeAuthenticated Devices.List.handler
+                route "/organization" >=> mustBeAuthenticated Organization.Details.handler
             ]
         POST >=>
             choose [

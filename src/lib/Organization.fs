@@ -49,3 +49,14 @@ module Organization =
     
     let createToken name =
         createTokenWith name (DateOnly.FromDateTime(DateTime.Now.AddMonths(2)))
+        
+    /// <summary>
+    /// Transforms an organization into an entity that does not contain any sensitive information, e.g. removes the
+    /// access tokens, the devices, the password hash and the salt
+    /// </summary>
+    let withoutSensitiveInformation o =
+        {|
+            Id = o.Id
+            Email = o.Email
+            Name = o.Name
+        |}

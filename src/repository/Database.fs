@@ -158,6 +158,19 @@ module CouchDb =
                     do organizationRevisionTable[Guid.Parse(r.Id)] <- r.Rev
                     {| Id = r.Id; Rev = r.Rev |})
                 
+        let getDevicesForOrganization dbProps organizationId =
+            Partitions.AllDocs.queryAsResult<string, Device.DeviceEntity> dbProps deviceDb (organizationId |> string)
+            |> AsyncResult.mapError ErrorRequestResult.textAsString
+            |> AsyncResult.map
+                (fun r ->
+                    let docs =
+                       r.Rows
+                       |> List.map (fun row -> row.Doc)
+                       |> List.choose id
+                    do docs
+                       |> List.iter (fun doc -> tryUpdateDeviceRevisionTable doc.DatabaseId doc.Revision)
+                    docs)
+            
         member this.RegisterDevice organizationId device =
             registerDevice dbProps organizationId device
             
@@ -177,3 +190,6 @@ module CouchDb =
         member this.SaveOrganization organization : Async<Result<{| Id: string; Rev: string |}, string>> =
             let entity = organization |> Organization.toEntity
             saveOrganization dbProps entity
+            
+        member this.GetDevicesForOrganization organizationId : Async<Result<Device.Device list, string>> =
+            organizationId |> getDevicesForOrganization dbProps |> AsyncResult.map (List.map (Device.fromEntity >> fst))
