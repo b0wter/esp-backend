@@ -53,7 +53,7 @@ module Register =
         }
 
     let handler (payload: Registration) : HttpHandler =
-        fun (next: HttpFunc) (ctx: HttpContext) ->
+        fun (_: HttpFunc) (ctx: HttpContext) ->
             taskResult {
                 let repo = ctx.GetService<CouchDb.C>()
                 let organization = Organization.create payload.Email payload.Password payload.Name

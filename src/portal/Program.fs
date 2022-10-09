@@ -49,13 +49,13 @@ let webApp =
     choose [
         GET >=>
             choose [
-                route "/login" >=> defaultBindJson Login.validatePayload Login.handler
                 route "/logout" >=> mustBeAuthenticated Logout.handler
                 route "/devices" >=> mustBeAuthenticated Devices.List.handler
                 route "/organization" >=> mustBeAuthenticated Organization.Details.handler
             ]
         POST >=>
             choose [
+                route "/login" >=> defaultBindJson Login.validatePayload Login.handler
                 route "/register" >=> defaultBindJson Register.validatePayload Register.handler
             ]
         setStatusCode 404 >=> text "Not Found" ]
