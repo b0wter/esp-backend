@@ -32,6 +32,7 @@ module Config =
         // --------------------------
         | Login of LoginConfig
         | Logout
+        | Status
         // --------------------------
         | Uninitialized
 
@@ -114,6 +115,7 @@ module Config =
                         |> List.fold applyLoginConfig c
                     ) }
         | MainArgs.Logout -> { config with Command = Logout }
+        | MainArgs.Status -> { config with Command = Status }
         | MainArgs.Device args ->
             args.GetAllResults()
             |> List.fold applyDeviceArg config

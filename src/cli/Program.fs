@@ -68,10 +68,8 @@ module Program =
         let storageFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
         let storagePath = System.IO.Path.Combine (storageFolder, "access_token")
         if storagePath |> System.IO.File.Exists then
-            printfn "Found an existing access token"
             storagePath |> System.IO.File.ReadAllText |> Some
         else
-            printfn "No existing access token found"
             None
         
     [<EntryPoint>]
@@ -87,6 +85,10 @@ module Program =
                 login config baseUrl
             | Config.Command.Logout ->
                 failwith "not implemented"
+            | Config.Command.Status ->
+                if config.AccessToken.IsSome then printfn "An access token is set"
+                else printfn "No access token is set, you need to login"
+                Task.FromResult(Ok ())
             | Config.Command.Uninitialized ->
                 failwith "The configuration process did not produce a valid configuration/command. Please contact the developer."
             | Config.Command.AddDevice config ->

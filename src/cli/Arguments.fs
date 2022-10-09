@@ -55,6 +55,7 @@ module Arguments =
     type MainArgs =
         | [<CliPrefix(CliPrefix.None)>] Login of ParseResults<LoginArgs> 
         | [<CliPrefix(CliPrefix.None)>] Logout
+        | [<CliPrefix(CliPrefix.None)>] Status
         | [<CliPrefix(CliPrefix.None)>] Device of ParseResults<DeviceArgs>
         | [<CliPrefix(CliPrefix.None)>] Organization of ParseResults<OrganizationArgs>
         interface IArgParserTemplate with
@@ -64,3 +65,4 @@ module Arguments =
                 | Organization _ -> "Add/update/show (current) organizations"
                 | Login _ -> "Logs into a device backend"
                 | Logout _ -> "Deletes all local login details"
+                | Status _ -> "Lists various current status infos"
