@@ -35,3 +35,8 @@ module Portal =
         let url = Http.combineUrls baseUrl $"/devices/%s{macAddress}"
         let request = Http.createGet url []
         Http.sendTextRequest (Some authToken) request
+
+    let listDevices baseUrl authToken =
+        let url = Http.combineUrls baseUrl "/devices"
+        let request = Http.createGet url []
+        Http.sendTextRequest (Some authToken) request

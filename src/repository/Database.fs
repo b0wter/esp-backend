@@ -4,10 +4,12 @@ open System
 open FsToolkit.ErrorHandling.Operator.AsyncResult
 open b0wter.CouchDb.Lib
 open b0wter.CouchDb.Lib.DbProperties
+open b0wter.CouchDb.Lib.HttpVerbs.Head
 open b0wter.CouchDb.Lib.Mango
 open FsToolkit.ErrorHandling
 open Gerlinde.Shared.Lib
 open Gerlinde.Shared.Repository
+open b0wter.CouchDb.Lib.RequestResult
 
 module CouchDb =
     
@@ -166,7 +168,8 @@ module CouchDb =
                     {| Id = r.Id; Rev = r.Rev |})
                 
         let getDevicesForOrganization dbProps organizationId =
-            Partitions.AllDocs.queryAsResult<string, Device.DeviceEntity> dbProps deviceDb (organizationId |> string)
+            let queryParameters = { Partitions.AllDocs.EmptyQueryParameters with IncludeDocs = Some true }
+            Partitions.AllDocs.queryWithAsResult<string, Device.DeviceEntity> dbProps deviceDb (organizationId |> string) queryParameters
             |> AsyncResult.mapError ErrorRequestResult.textAsString
             |> AsyncResult.map
                 (fun r ->
@@ -214,6 +217,24 @@ module CouchDb =
                 | many ->
                     return! Error $"A search for a device by id returned %i{many.Length} results"
             }
+        
+        let doesDeviceExist dbProps organizationId macAddress =
+            asyncResult {
+                let id = $"%O{organizationId}:%s{macAddress}"
+                let! response = Documents.Head.query dbProps deviceDb id
+                match response with
+                | HttpVerbs.Head.Result.NotModified _
+                | HttpVerbs.Head.Result.DocumentExists _ ->
+                    return! Ok true
+                | HttpVerbs.Head.Result.NotFound _ ->
+                    return! Ok false
+                | Unauthorized e
+                | DbNameMissing e
+                | ParameterIsMissing e
+                | DocumentIdMissing e
+                | Unknown e ->
+                    return! Error e.Content
+            }
             
         member this.RegisterDevice organizationId device =
             registerDevice dbProps organizationId device
@@ -245,3 +266,6 @@ module CouchDb =
             macAddress
             |> (findDeviceInOrganization dbProps organizationId)
             |> AsyncResult.map Device.fromEntity
+            
+        member this.DoesDeviceExist organizationId macAddress : Async<Result<bool, string>> =
+            doesDeviceExist dbProps organizationId macAddress

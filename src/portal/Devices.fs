@@ -114,9 +114,14 @@ module Add =
                 let repo = ctx.GetService<CouchDb.C>()
                 match payload with
                 | Validation.Ok device ->
-                    let device = { device with AccessToken = Utilities.generateToken 64 }
-                    let! device = repo.SaveDevice (device, organization.Id)
-                    return! ctx.WriteJsonAsync device
+                    let! exists = repo.DoesDeviceExist organization.Id device.MacAddress
+                    if exists then
+                        do ctx.SetStatusCode 500
+                        return! ctx.WriteStringAsync "A device with the same mac address already exists for this organization"
+                    else
+                        let device = { device with AccessToken = Utilities.generateToken 64 }
+                        let! device = repo.SaveDevice (device, organization.Id)
+                        return! ctx.WriteJsonAsync device
                 | Validation.Error errors ->
                     do ctx.SetStatusCode 400
                     let merged = String.Join(Environment.NewLine, errors)

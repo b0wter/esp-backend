@@ -5,7 +5,6 @@ open Argu
 open System
 open Gerlinde.Shared.Lib
 open Gerlinde.Shared.Lib.Json
-open Newtonsoft.Json
 
 module Program =
     let private applicationDataPath =
@@ -136,6 +135,23 @@ module Program =
                 return Error $"An exception was thrown because: %s{exn.Message}"
         }
         
+    let listDevices authToken baseUrl =
+        task {
+            let! result = Portal.listDevices baseUrl authToken
+            match result with
+            | Http.ApiHttpResponse.Ok list ->
+                let formatted =
+                    list
+                    |> Newtonsoft.Json.JsonConvert.DeserializeObject<Device.Device list>
+                    |> (fun x -> Newtonsoft.Json.JsonConvert.SerializeObject(x, Newtonsoft.Json.Formatting.Indented, DateOnlyJsonConverter()))
+                printfn $"%s{formatted}"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Could not retrieve device list because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
     let invalidAuthToken (token: Organization.AccessToken) =
         printfn $"Your current access token was only valid until %A{token.ValidThrough}. You need to retrieve a new one."
         printfn "Do you want to remove the local (invalid) access token? [y/N]"
@@ -217,7 +233,9 @@ module Program =
                     config.AccessToken
                     (fun token -> deviceDetails token baseUrl macAddress)
             | Config.Command.ListDevices ->
-                failwith "not implemented"
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> listDevices token baseUrl)
             | Config.Command.AddOrganization config ->
                 failwith "not implemented"
             | Config.Command.ShowOrganization ->
