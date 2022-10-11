@@ -60,6 +60,7 @@ let webApp =
             choose [
                 route "/logout" >=> mustBeAuthenticated Logout.handler
                 route "/devices" >=> mustBeAuthenticated Devices.List.handler
+                routef "/devices/%s" (fun macAddress -> mustBeAuthenticated (Devices.Details.handler macAddress))
                 route "/organization" >=> mustBeAuthenticated Organization.Details.handler
             ]
         POST >=>

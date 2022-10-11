@@ -43,14 +43,16 @@ module Arguments =
     
     type DeviceArgs =
         | [<CliPrefix(CliPrefix.None); First>] Add of ParseResults<AddDeviceArgs>
-        | [<CliPrefix(CliPrefix.None); First>] Delete of string
+        | [<CliPrefix(CliPrefix.None); First>] Delete of macAddress:string
         | [<CliPrefix(CliPrefix.None); First>] List
+        | [<CliPrefix(CliPrefix.None); First>] Details of macAddress:string
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | Add _ -> "Add a new device"
                 | Delete _ -> "Delete a device by it's mac address"
-                | List _ -> "Lists all devices"
+                | List -> "Lists all devices"
+                | Details _ -> "Shows the all the details of a device"
 
     type MainArgs =
         | [<CliPrefix(CliPrefix.None)>] Login of ParseResults<LoginArgs> 

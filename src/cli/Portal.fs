@@ -21,7 +21,7 @@ module Portal =
         let request = Http.createGet url []
         Http.sendTextRequest (Some authToken) request
         
-    let addDevice (baseUrl: string) authToken (device: Device.Device) : Task<Http.ApiHttpResponse> =
+    let addDevice (baseUrl: string) authToken (device: {| MacAddress: string; Name: string option; Description: string option |}) : Task<Http.ApiHttpResponse> =
         let url = Http.combineUrls baseUrl "/devices"
         let request = Http.createJsonPost url device
         Http.sendTextRequest (Some authToken) request
@@ -29,4 +29,9 @@ module Portal =
     let deleteDevice baseUrl authToken macAddress =
         let url = Http.combineUrls baseUrl $"/devices/%s{macAddress}"
         let request = Http.createDelete url []
+        Http.sendTextRequest (Some authToken) request
+        
+    let deviceDetails baseUrl authToken macAddress =
+        let url = Http.combineUrls baseUrl $"/devices/%s{macAddress}"
+        let request = Http.createGet url []
         Http.sendTextRequest (Some authToken) request

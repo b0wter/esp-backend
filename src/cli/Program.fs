@@ -4,6 +4,8 @@ open System.Threading.Tasks
 open Argu
 open System
 open Gerlinde.Shared.Lib
+open Gerlinde.Shared.Lib.Json
+open Newtonsoft.Json
 
 module Program =
     let private applicationDataPath =
@@ -95,14 +97,12 @@ module Program =
         
     let addDevice authToken baseUrl (config: Config.AddDeviceConfig) =
         task {
-            let token = Utilities.generateToken 64
-            let device = Device.create config.MacAddress token config.Description None [] config.Name
+            let device = {| MacAddress = config.MacAddress; Name = config.Name; Description = config.Description |}
             let! result = Portal.addDevice baseUrl authToken device
             
             match result with
-            | Http.ApiHttpResponse.Ok _ ->
-                printfn "While the device was persisted in the backend a new access token was created for the device. Please write it down as it will not be shown again!"
-                printfn $"%s{token}"
+            | Http.ApiHttpResponse.Ok device ->
+                printfn "%s" device
                 return Ok ()
             | Http.ApiHttpResponse.Error (statusCode, body, _) ->
                 return Error $"Device was not saved because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
@@ -119,6 +119,19 @@ module Program =
                 return Ok ()
             | Http.ApiHttpResponse.Error (statusCode, body, _) ->
                 return Error $"Device was not deleted because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+
+    let deviceDetails authToken baseUrl macAddress =
+        task {
+            let! result = Portal.deviceDetails baseUrl authToken macAddress
+            match result with
+            | Http.ApiHttpResponse.Ok details ->
+                printfn $"%s{details}"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Could not retrieve device details because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
             | Http.ApiHttpResponse.Exception exn ->
                 return Error $"An exception was thrown because: %s{exn.Message}"
         }
@@ -199,6 +212,10 @@ module Program =
                 ``Run action or fail if no auth token is set``
                     config.AccessToken
                     (fun token -> deleteDevice token baseUrl macAddress)
+            | Config.Command.DeviceDetails macAddress ->
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> deviceDetails token baseUrl macAddress)
             | Config.Command.ListDevices ->
                 failwith "not implemented"
             | Config.Command.AddOrganization config ->

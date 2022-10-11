@@ -31,6 +31,7 @@ module Config =
         | AddDevice of AddDeviceConfig
         | DeleteDevice of macAddress:string
         | ListDevices
+        | DeviceDetails of macAddress:string
         // --------------------------
         | Login of LoginConfig
         | Logout
@@ -102,6 +103,8 @@ module Config =
             { config with Command = Command.DeleteDevice macAddress }
         | DeviceArgs.List ->
             { config with Command = Command.ListDevices }
+        | DeviceArgs.Details macAddress ->
+            { config with Command = Command.DeviceDetails macAddress }
 
     let applyMainArg (config: Config) (m: MainArgs) : Config =
         match m with

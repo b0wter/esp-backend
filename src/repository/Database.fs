@@ -1,6 +1,7 @@
 namespace Gerlinde.Shared.Repository
 
 open System
+open FsToolkit.ErrorHandling.Operator.AsyncResult
 open b0wter.CouchDb.Lib
 open b0wter.CouchDb.Lib.DbProperties
 open b0wter.CouchDb.Lib.Mango
@@ -179,12 +180,40 @@ module CouchDb =
             
         let deleteDeviceForOrganization dbProps (organizationId: Guid) macAddress =
             asyncResult {
-                let! response = Documents.Head.queryAsResult dbProps deviceDb $"%O{organizationId}:%s{macAddress}"
-                let revision = response.ETag.TrimEnd('"').TrimStart('"')
+                let deviceId = $"%O{organizationId}:%s{macAddress}"
+                let! revision =
+                    if deviceId |> deviceRevisionTable.ContainsKey then
+                        asyncResult { return deviceRevisionTable[deviceId] }
+                    else
+                        asyncResult {
+                            let! response = Documents.Head.queryAsResult dbProps deviceDb deviceId
+                            let revision = response.ETag.TrimEnd('"').TrimStart('"')
+                            return revision
+                        }
                 return! Documents.Delete.queryAsResult dbProps deviceDb $"%O{organizationId}:%s{macAddress}" revision
             }
             |> AsyncResult.mapError (fun err -> err |> ErrorRequestResult.textAsString)
-            |> AsyncResult.map ignore
+            |> AsyncResult.map (fun _ ->
+                    do deviceRevisionTable.TryRemove $"%O{organizationId}:%s{macAddress}" |> ignore
+                )
+            
+        let findDeviceInOrganization dbProps organizationId macAddress =
+            asyncResult {
+                let id = $"%O{organizationId}:%s{macAddress}"
+                let matchId = condition "_id" (Equal <| Text id) |> createExpression
+                let! response =
+                    Databases.Find.queryAsResult<Device.DeviceEntity> dbProps deviceDb matchId
+                    |> AsyncResult.mapError (fun err -> err |> ErrorRequestResult.textAsString)
+                    
+                match response.Docs with
+                | [] ->
+                    return! Error $"Could not find any devices with the id %s{id}"
+                | [ single ] ->
+                    do tryUpdateDeviceRevisionTable single.DatabaseId single.Revision
+                    return! Ok single
+                | many ->
+                    return! Error $"A search for a device by id returned %i{many.Length} results"
+            }
             
         member this.RegisterDevice organizationId device =
             registerDevice dbProps organizationId device
@@ -211,3 +240,8 @@ module CouchDb =
             
         member this.DeleteDeviceForOrganization organizationId macAddress : Async<Result<unit, string>> =
             macAddress |> (deleteDeviceForOrganization dbProps organizationId)
+            
+        member this.FindDeviceInOrganization organizationId macAddress : Async<Result<Device.Device * Guid, string>> =
+            macAddress
+            |> (findDeviceInOrganization dbProps organizationId)
+            |> AsyncResult.map Device.fromEntity

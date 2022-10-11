@@ -26,8 +26,8 @@ module Add =
         Name: string option
         Description: string option
         CurrentFirmwareVersion: string option
-        AvailableFirmwareVersions : Firmware list
-        KnownCommands: KnownCommand list
+        AvailableFirmwareVersions : Firmware list option
+        KnownCommands: KnownCommand list option
     }
 
     let validatePayload (payload: Payload) =
@@ -85,8 +85,14 @@ module Add =
             let! validatedName = payload.Name |> mayNotExceed 1024 "name"
             and! validatedDescription = payload.Description |> mayNotExceed 2048 "description"
             and! validatedFirmware = payload.CurrentFirmwareVersion |> mayNotExceed 1024 "firmware"
-            and! validatedFirmwareVersions = payload.AvailableFirmwareVersions |> validateFirmwareVersions
-            and! validatedCommands = payload.KnownCommands |> validateKnownCommands
+            and! validatedFirmwareVersions =
+                payload.AvailableFirmwareVersions
+                |> Option.defaultValue []
+                |> validateFirmwareVersions
+            and! validatedCommands =
+                payload.KnownCommands
+                |> Option.defaultValue []
+                |> validateKnownCommands
             let device = {
                 AccessToken = String.Empty
                 Description = validatedDescription
@@ -108,6 +114,7 @@ module Add =
                 let repo = ctx.GetService<CouchDb.C>()
                 match payload with
                 | Validation.Ok device ->
+                    let device = { device with AccessToken = Utilities.generateToken 64 }
                     let! device = repo.SaveDevice (device, organization.Id)
                     return! ctx.WriteJsonAsync device
                 | Validation.Error errors ->
@@ -124,4 +131,14 @@ module Delete =
                 let! _ = macAddress |> repo.DeleteDeviceForOrganization organization.Id
                 do ctx.SetStatusCode 204
                 return! next ctx
+            } |> Handler.mapErrorToResponse ctx
+            
+module Details =
+    let handler (macAddress: string) (organization: Organization.Organization, _) =
+        fun (_: HttpFunc) (ctx: HttpContext) ->
+            taskResult {
+                let repo = ctx.GetService<CouchDb.C>()
+                let! device, _ = macAddress |> repo.FindDeviceInOrganization organization.Id
+                do ctx.SetStatusCode 200
+                return! ctx.WriteJsonAsync device
             } |> Handler.mapErrorToResponse ctx
