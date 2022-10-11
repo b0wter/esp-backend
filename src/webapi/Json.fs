@@ -10,41 +10,68 @@ module Json =
         let inline isNullMatch value = obj.ReferenceEquals(value, null)
         fun (next : HttpFunc) (ctx : HttpContext) ->
             task {
-                    try
-                        let! model = ctx.BindJsonAsync<'T>()
-                        if model |> isNullMatch then
-                            return! parsingErrorHandler "The request body is empty" next ctx
-                        else
-                            match model |> validator with
-                            | Validation.Ok t ->
-                                return! successHandler t next ctx
-                            | Validation.Error errors ->
-                                let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
-                                return! parsingErrorHandler errorMessage next ctx
-                    with ex ->
-                        let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
-                        return! parsingErrorHandler errorMessage next ctx
-                }
-
+                try
+                    let! model = ctx.BindJsonAsync<'T>()
+                    if model |> isNullMatch then
+                        return! parsingErrorHandler "The request body is empty" next ctx
+                    else
+                        match model |> validator with
+                        | Validation.Ok t ->
+                            return! successHandler t next ctx
+                        | Validation.Error errors ->
+                            let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
+                            return! parsingErrorHandler errorMessage next ctx
+                with ex ->
+                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
+                    return! parsingErrorHandler errorMessage next ctx
+            }
+            
     let tryBindJsonWithExtra<'T, 'U> (parsingErrorHandler: string -> HttpHandler) (validator: 'T -> Validation<'T, string>) (successHandler: 'T -> 'U -> HttpHandler) (extra: 'U): HttpHandler =
         let inline isNullMatch value = obj.ReferenceEquals(value, null)
         fun (next : HttpFunc) (ctx : HttpContext) ->
             task {
-                    try
-                        let! model = ctx.BindJsonAsync<'T>()
-                        if model |> isNullMatch then
-                            return! parsingErrorHandler "The request body is empty" next ctx
-                        else
-                            match model |> validator with
-                            | Validation.Ok t ->
-                                return! successHandler t extra next ctx
-                            | Validation.Error errors ->
-                                let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
-                                return! parsingErrorHandler errorMessage next ctx
-                    with ex ->
-                        let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
-                        return! parsingErrorHandler errorMessage next ctx
-                }
+                try
+                    let! model = ctx.BindJsonAsync<'T>()
+                    if model |> isNullMatch then
+                        return! parsingErrorHandler "The request body is empty" next ctx
+                    else
+                        match model |> validator with
+                        | Validation.Ok t ->
+                            return! successHandler t extra next ctx
+                        | Validation.Error errors ->
+                            let errorMessage = sprintf $"Validation failed because: %s{String.Join(';', errors)}"
+                            return! parsingErrorHandler errorMessage next ctx
+                with ex ->
+                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
+                    return! parsingErrorHandler errorMessage next ctx
+            }
         
-
-
+    let tryBindJsonAndTransform<'payload, 'entity> (parsingErrorHandler: string -> HttpHandler) (validator: 'payload -> Validation<'entity, string>) (successHandler: Validation<'entity, string> -> HttpHandler): HttpHandler =
+        let inline isNullMatch value = obj.ReferenceEquals(value, null)
+        fun (next : HttpFunc) (ctx : HttpContext) ->
+            task {
+                try
+                    let! model = ctx.BindJsonAsync<'payload>()
+                    if model |> isNullMatch then
+                        return! parsingErrorHandler "The request body is empty" next ctx
+                    else
+                        return! successHandler (model |> validator) next ctx
+                with ex ->
+                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
+                    return! parsingErrorHandler errorMessage next ctx
+            }
+            
+    let tryBindJsonAndTransformWithExtra<'payload, 'entity, 'extra> (parsingErrorHandler: string -> HttpHandler) (validator: 'payload -> Validation<'entity, string>) (successHandler: Validation<'entity, string> -> 'extra -> HttpHandler) (extra: 'extra): HttpHandler =
+        let inline isNullMatch value = obj.ReferenceEquals(value, null)
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                try
+                    let! model = ctx.BindJsonAsync<'payload>()
+                    if model |> isNullMatch then
+                        return! parsingErrorHandler "The request body is empty" next ctx
+                    else
+                        return! successHandler (model |> validator) extra next ctx
+                with ex ->
+                    let errorMessage = sprintf $"Malformed request or missing field in request body, reason: %s{ex.Message}"
+                    return! parsingErrorHandler errorMessage next ctx
+            }

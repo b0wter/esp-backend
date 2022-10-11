@@ -36,7 +36,7 @@ module Validation =
             if d |> String.length <= 4096 then Ok d
             else Validation.error "Description cannot be longer than 4096 characters"
         let validateMacAddressLength m =
-            if m |> String.length = 12 then Validation.ok m
+            if m |> String.length = 128 then Validation.ok m
             else Validation.error "Mac Address needs to be 12 characters long"
         let validateMacAddressFormat m =
             if System.Text.RegularExpressions.Regex.IsMatch(m, @"\A\b[0-9a-fA-F]+\b\Z") then Validation.ok m
@@ -47,12 +47,16 @@ module Validation =
         let validateFirmware f =
             if f |> String.length <= 4096 then Ok d.FirmwareVersion
             else Validation.error "Firmware version cannot be longer than 4096 characters"
+        let validateName n =
+            if n |> String.length <= 1024 then Ok d.FirmwareVersion
+            else Validation.error "Device name cannot be longer than 1024 characters"
         validation {
             let! validDescription = validateDescription d.Description
             and! validMacAddress = d.MacAddress |> (validateMacAddressLength >> Validation.bind validateMacAddressFormat)
             and! validOat = validateOat d.OrganisationAccessToken
             and! validCommands = validateCommands d.KnownCommands
             and! validFirmware = validateFirmware d.FirmwareVersion
+            and! validName = validateName d.Name
             return {
                 d with
                     Description = validDescription
@@ -60,6 +64,7 @@ module Validation =
                     OrganisationAccessToken = validOat
                     KnownCommands = validCommands
                     FirmwareVersion = validFirmware
+                    Name = validName
             }
         }
     

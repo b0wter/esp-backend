@@ -65,6 +65,7 @@ module CouchDb =
         let applyJsonSettings () =
             do Json.converters.Add(FifteenBelow.Json.OptionConverter() :> Newtonsoft.Json.JsonConverter)
             do Json.converters.Add(FifteenBelow.Json.UnionConverter() :> Newtonsoft.Json.JsonConverter)
+            do Json.converters.Add(Json.DateOnlyJsonConverter() :> Newtonsoft.Json.JsonConverter)
         do applyJsonSettings()
 
         let authentication = (Server.Authenticate.queryAsResult dbProps) |> Async.RunSynchronously
@@ -107,9 +108,14 @@ module CouchDb =
                 let! result =
                     Databases.Find.queryAsResult<Organization.OrganizationEntity> dbProps organizationDb expression
                     |> AsyncResult.mapError ErrorRequestResult.textAsString
-                match result.Docs |> List.tryExactlyOne with
-                | Some x -> return! Ok x
-                | None -> return! Error "No organization could be found for the given organization access token"
+                match result.Docs with
+                | [] ->
+                    return! Error "No organization was found for the given access token"
+                | [ head ] ->
+                    do tryUpdateOrganizationRevisionTable head.Id head.Revision
+                    return! Ok head
+                | _ ->
+                    return! Error "More than one device was found for the given device token"
             }
             
         let findDeviceByDeviceToken (dbProps: DbProperties) (token: string) =
@@ -123,7 +129,7 @@ module CouchDb =
                     return! Error "No device was found for the given device token"
                 | [ head ] ->
                     do tryUpdateDeviceRevisionTable head.DatabaseId head.Revision
-                    return! Ok result.Docs.Head
+                    return! Ok head
                 | _ ->
                     return! Error "More than one device was found for the given device token"
             }
@@ -171,6 +177,15 @@ module CouchDb =
                        |> List.iter (fun doc -> tryUpdateDeviceRevisionTable doc.DatabaseId doc.Revision)
                     docs)
             
+        let deleteDeviceForOrganization dbProps (organizationId: Guid) macAddress =
+            asyncResult {
+                let! response = Documents.Head.queryAsResult dbProps deviceDb $"%O{organizationId}:%s{macAddress}"
+                let revision = response.ETag.TrimEnd('"').TrimStart('"')
+                return! Documents.Delete.queryAsResult dbProps deviceDb $"%O{organizationId}:%s{macAddress}" revision
+            }
+            |> AsyncResult.mapError (fun err -> err |> ErrorRequestResult.textAsString)
+            |> AsyncResult.map ignore
+            
         member this.RegisterDevice organizationId device =
             registerDevice dbProps organizationId device
             
@@ -193,3 +208,6 @@ module CouchDb =
             
         member this.GetDevicesForOrganization organizationId : Async<Result<Device.Device list, string>> =
             organizationId |> getDevicesForOrganization dbProps |> AsyncResult.map (List.map (Device.fromEntity >> fst))
+            
+        member this.DeleteDeviceForOrganization organizationId macAddress : Async<Result<unit, string>> =
+            macAddress |> (deleteDeviceForOrganization dbProps organizationId)

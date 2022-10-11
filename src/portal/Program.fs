@@ -29,7 +29,12 @@ let mustBeAuthenticated (successHandler: (Organization.Organization * string) ->
                 let repo = ctx.GetService<CouchDb.C>()
                 match! repo.FindOrganizationByAccessToken token with
                 | Ok org ->
-                    return! successHandler (org, token) next ctx
+                    let orgToken = org.AccessTokens |> List.find (fun t -> t.Token = token)
+                    if orgToken.ValidThrough >= DateOnly.FromDateTime(DateTime.Now) then
+                        return! successHandler (org, token) next ctx
+                    else
+                        do ctx.SetStatusCode 401
+                        return! ctx.WriteTextAsync "The access token is no longer valid"
                 | Error e ->
                     do ctx.SetStatusCode 401
                     return! ctx.WriteTextAsync e
@@ -45,6 +50,10 @@ let defaultBindJson<'a> = Json.tryBindJson<'a> jsonParsingError
 
 let defaultBindJsonWithArg<'a, 'b> = Json.tryBindJsonWithExtra<'a, 'b> jsonParsingError
 
+let defaultBindJsonAndValidate<'a, 'b> = Json.tryBindJsonAndTransform<'a, 'b> jsonParsingError
+
+let defaultBindJsonAndTransformWithArg<'payload, 'entity, 'extra> = Json.tryBindJsonAndTransformWithExtra<'payload, 'entity, 'extra> jsonParsingError
+
 let webApp =
     choose [
         GET >=>
@@ -57,6 +66,11 @@ let webApp =
             choose [
                 route "/login" >=> defaultBindJson Login.validatePayload Login.handler
                 route "/register" >=> defaultBindJson Register.validatePayload Register.handler
+                route "/devices" >=> mustBeAuthenticated (defaultBindJsonAndTransformWithArg Devices.Add.validatePayload Devices.Add.handler)
+            ]
+        DELETE >=>
+            choose [
+                routef "/devices/%s" (fun (macAddress: string) -> mustBeAuthenticated (Devices.Delete.handler macAddress))
             ]
         setStatusCode 404 >=> text "Not Found" ]
 
@@ -108,6 +122,7 @@ let configureServices (services : IServiceCollection) =
     let customJsonSettings = JsonSerializerSettings(NullValueHandling = NullValueHandling.Ignore)
     do customJsonSettings.Converters.Add(FifteenBelow.Json.OptionConverter() :> JsonConverter)
     do customJsonSettings.Converters.Add(FifteenBelow.Json.UnionConverter() :> JsonConverter)
+    do customJsonSettings.Converters.Add(Json.DateOnlyJsonConverter() :> JsonConverter)
     services.AddSingleton<Json.ISerializer>(
         NewtonsoftJson.Serializer(customJsonSettings)) |> ignore
     services.AddSingleton<CouchDb.IDatabaseConfiguration, DataBaseConfiguration>() |> ignore

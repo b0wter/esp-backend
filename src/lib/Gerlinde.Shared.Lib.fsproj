@@ -9,6 +9,8 @@
     <Compile Include="Utilities.fs" />
     <Compile Include="Device.fs" />
     <Compile Include="Organization.fs" />
+    <Compile Include="Option.fs" />
+    <Compile Include="Json.fs" />
   </ItemGroup>
 
   <ItemGroup>

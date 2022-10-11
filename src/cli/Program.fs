@@ -3,8 +3,20 @@
 open System.Threading.Tasks
 open Argu
 open System
+open Gerlinde.Shared.Lib
 
 module Program =
+    let private applicationDataPath =
+        System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "gerlinde"
+            )
+         
+    let private accessTokenPath =
+        System.IO.Path.Combine(
+            applicationDataPath,
+            "access_token")
+ 
     let private parseCommandLineArguments argv =
         let errorHandler = ProcessExiter(colorizer = function ErrorCode.HelpText -> None | _ -> None)
         let parser = ArgumentParser.Create<Arguments.MainArgs>(errorHandler = errorHandler)
@@ -50,9 +62,7 @@ module Program =
                 
                 match Console.ReadLine() with
                 | "y" | "Y" ->
-                    let storageFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
-                    let storagePath = System.IO.Path.Combine (storageFolder, "access_token")
-                    System.IO.File.WriteAllText (storagePath, content)
+                    System.IO.File.WriteAllText (accessTokenPath, content)
                 | _ ->
                     printfn $"The access token is: %s{content}"
                 return Ok ()
@@ -64,37 +74,131 @@ module Program =
                 return Error $"An exception was raised while trying to access the portal api. Details: %s{exn.Message}"
         }
         
+    let logout authToken baseUrl =
+        task {
+            let! result = Portal.logout baseUrl authToken
+            
+            match result with
+            | Http.ApiHttpResponse.Ok _ ->
+                printfn "Access token has been invalidated by the backend"
+                if System.IO.File.Exists accessTokenPath then
+                    do accessTokenPath |> System.IO.File.Delete
+                    printfn "Deleted local access token file"
+                    return Ok ()
+                else
+                    return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"You could not be logged out because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
+    let addDevice authToken baseUrl (config: Config.AddDeviceConfig) =
+        task {
+            let token = Utilities.generateToken 64
+            let device = Device.create config.MacAddress token config.Description None [] config.Name
+            let! result = Portal.addDevice baseUrl authToken device
+            
+            match result with
+            | Http.ApiHttpResponse.Ok _ ->
+                printfn "While the device was persisted in the backend a new access token was created for the device. Please write it down as it will not be shown again!"
+                printfn $"%s{token}"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Device was not saved because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
+    let deleteDevice authToken baseUrl macAddress =
+        task {
+            let! result = Portal.deleteDevice baseUrl authToken macAddress
+            match result with
+            | Http.ApiHttpResponse.Ok _ ->
+                printfn "Device has been deleted"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Device was not deleted because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
+    let invalidAuthToken (token: Organization.AccessToken) =
+        printfn $"Your current access token was only valid until %A{token.ValidThrough}. You need to retrieve a new one."
+        printfn "Do you want to remove the local (invalid) access token? [y/N]"
+        let input = Console.ReadLine ()
+        do match input with
+            | "Y" | "y" ->
+                System.IO.File.Delete accessTokenPath
+            | _ ->
+                ()
+        printfn "To use with application you need to login via the 'login' command"
+        
     let tryGetAccessToken () =
-        let storageFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
-        let storagePath = System.IO.Path.Combine (storageFolder, "access_token")
-        if storagePath |> System.IO.File.Exists then
-            storagePath |> System.IO.File.ReadAllText |> Some
+        let deserialize s =
+            Newtonsoft.Json.JsonConvert.DeserializeObject<Organization.AccessToken>(s, Json.DateOnlyJsonConverter())
+        if accessTokenPath |> System.IO.File.Exists then
+            accessTokenPath
+            |> System.IO.File.ReadAllText
+            |> deserialize
+            |> Some
         else
             None
+            
+    let ``Make sure application data folder exists`` () =
+        if System.IO.Directory.Exists applicationDataPath then ()
+        else System.IO.Directory.CreateDirectory applicationDataPath |> ignore
+        
+    let ``Change to invalid token command if token expired`` (config: Config.Config) =
+        match config.AccessToken with
+        | Some token ->
+            if token.ValidThrough >= DateOnly.FromDateTime(DateTime.Now) then config
+            else { config with Command = Config.Command.InvalidAuthToken token }
+        | None ->
+            config
         
     [<EntryPoint>]
     let main argv =
         let _, results = parseCommandLineArguments argv
         let config = Config.applyAllArgs results
-        let config = { config with AccessToken = tryGetAccessToken () }
+        do ``Make sure application data folder exists`` ()
+
+        let config =
+            { config with AccessToken = tryGetAccessToken () }
+            |> ``Change to invalid token command if token expired``
+
         let baseUrl = "http://localhost:5000/"
+        
+        let ``Run action or fail if no auth token is set`` (accessToken: Organization.AccessToken option) f =
+            match accessToken with
+            | Some token -> f token.Token
+            | None -> Task.FromResult(Error "You need to login first")
         
         let task =
             match config.Command with
             | Config.Command.Login config ->
                 login config baseUrl
             | Config.Command.Logout ->
-                failwith "not implemented"
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> logout token baseUrl)
             | Config.Command.Status ->
                 if config.AccessToken.IsSome then printfn "An access token is set"
                 else printfn "No access token is set, you need to login"
                 Task.FromResult(Ok ())
             | Config.Command.Uninitialized ->
                 failwith "The configuration process did not produce a valid configuration/command. Please contact the developer."
-            | Config.Command.AddDevice config ->
-                failwith "not implemented"
-            | Config.Command.DeleteDevice config ->
-                failwith "not implemented"
+            | Config.Command.InvalidAuthToken token ->
+                do invalidAuthToken token
+                Task.FromResult(Ok ())
+            | Config.Command.AddDevice addConfig ->
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> addDevice token baseUrl addConfig)
+            | Config.Command.DeleteDevice macAddress ->
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> deleteDevice token baseUrl macAddress)
             | Config.Command.ListDevices ->
                 failwith "not implemented"
             | Config.Command.AddOrganization config ->

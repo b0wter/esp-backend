@@ -2,6 +2,7 @@ namespace Gerlinde.Portal.Cli
 
 open System
 open System.Net.Http
+open System.Net.Http.Headers
 open System.Threading.Tasks
 open System.Web
 
@@ -28,9 +29,15 @@ module Http =
         | Error of statusCode:int * body:string * headers:string list
         | Exception of e:exn
     
-    let sendTextRequest (request: HttpRequestMessage) : Task<ApiHttpResponse> =
+    let sendTextRequest (authToken: string option) (request: HttpRequestMessage) : Task<ApiHttpResponse> =
         task {
-            try 
+            try
+                let authHeader =
+                    authToken
+                    |> Option.map (fun token -> AuthenticationHeaderValue("Bearer", token))
+                    |> Option.defaultValue null
+                do request.Headers.Authorization <- authHeader
+                
                 let! response = client.SendAsync request
                 let! content =
                     try
@@ -71,4 +78,14 @@ module Http =
                 queryParameters |> List.iter (fun (key, value) -> query[key] <- value)
                 query.ToString()
         new HttpRequestMessage(HttpMethod.Get, url)
+        
+    let createDelete (url: string) (queryParameters: (string * string) list) : HttpRequestMessage =
+        let url =
+            if queryParameters.IsEmpty then url
+            else
+                let query = HttpUtility.ParseQueryString(String.Empty)
+                queryParameters |> List.iter (fun (key, value) -> query[key] <- value)
+                query.ToString()
+        new HttpRequestMessage(HttpMethod.Delete, url)
+        
         

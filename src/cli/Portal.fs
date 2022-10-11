@@ -4,6 +4,7 @@ open System
 open System.Net.Http
 open System.Threading
 open System.Threading.Tasks
+open Gerlinde.Shared.Lib
 open Hopac
 
 module Portal =
@@ -12,10 +13,20 @@ module Portal =
         task {
             let url = Http.combineUrls baseUrl "/login"
             let request = Http.createJsonPost url {| Email = email; Password = password |}
-            return! Http.sendTextRequest request
+            return! Http.sendTextRequest None request
         }
 
-    let logout (baseUrl: string) : Task<Http.ApiHttpResponse> =
-        let url = $"%s{baseUrl}/logout"
+    let logout (baseUrl: string) authToken : Task<Http.ApiHttpResponse> =
+        let url = Http.combineUrls baseUrl "/logout"
         let request = Http.createGet url []
-        Http.sendTextRequest request
+        Http.sendTextRequest (Some authToken) request
+        
+    let addDevice (baseUrl: string) authToken (device: Device.Device) : Task<Http.ApiHttpResponse> =
+        let url = Http.combineUrls baseUrl "/devices"
+        let request = Http.createJsonPost url device
+        Http.sendTextRequest (Some authToken) request
+        
+    let deleteDevice baseUrl authToken macAddress =
+        let url = Http.combineUrls baseUrl $"/devices/%s{macAddress}"
+        let request = Http.createDelete url []
+        Http.sendTextRequest (Some authToken) request

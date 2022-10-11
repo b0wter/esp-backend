@@ -2,6 +2,8 @@ namespace Gerlinde.Portal.Cli
 
 open Argu
 open Gerlinde.Portal.Cli.Arguments
+open Gerlinde.Shared.Lib
+open Gerlinde.Shared.Lib.Organization
 
 module Config =
 
@@ -35,12 +37,13 @@ module Config =
         | Status
         // --------------------------
         | Uninitialized
+        | InvalidAuthToken of AccessToken
 
     type Config =
         {
             Command: Command
             Verbose: bool
-            AccessToken: string option
+            AccessToken: Organization.AccessToken option
         }
 
     let EmptyConfig =
