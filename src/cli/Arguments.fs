@@ -59,8 +59,8 @@ module Arguments =
     type MainArgs =
         | [<First; ExactlyOnce>] Host of string
         | [<CliPrefix(CliPrefix.None)>] Login of ParseResults<LoginArgs> 
-        | [<CliPrefix(CliPrefix.None)>] Logout
-        | [<CliPrefix(CliPrefix.None)>] Status
+        | [<CliPrefix(CliPrefix.None); SubCommand>] Logout 
+        | [<CliPrefix(CliPrefix.None); SubCommand>] Status
         | [<CliPrefix(CliPrefix.None)>] Device of ParseResults<DeviceArgs>
         | [<CliPrefix(CliPrefix.None)>] Organization of ParseResults<OrganizationArgs>
         interface IArgParserTemplate with
