@@ -74,18 +74,18 @@ module CouchDb =
         let authentication = (Server.Authenticate.queryAsResult dbProps) |> Async.RunSynchronously
         do printfn "Authentifaction: %A" authentication
         
-        let createDbIfNotExisting dbName =
+        let createDbIfNotExisting dbName partitioned =
             asyncResult {
                 let! exists = Databases.Exists.queryAsResult dbProps dbName
                 if exists then
                     return Ok true
                 else
-                    let! _ = Databases.Create.queryAsResult dbProps dbName []
+                    let! _ = Databases.Create.queryAsResult dbProps dbName [ Databases.Create.QueryParameters.Partitioned partitioned ]
                     return Ok true
             }
             
-        do createDbIfNotExisting deviceDb |> Async.RunSynchronously |> ignore
-        do createDbIfNotExisting organizationDb |> Async.RunSynchronously |> ignore
+        do createDbIfNotExisting deviceDb true |> Async.RunSynchronously |> ignore
+        do createDbIfNotExisting organizationDb false |> Async.RunSynchronously |> ignore
 
         let currentConnectionStatus () =
             async {

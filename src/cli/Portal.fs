@@ -41,10 +41,10 @@ module Portal =
         let request = Http.createGet url []
         Http.sendTextRequest (Some authToken) request
 
-    let addOrganization baseUrl authToken email name password =
+    let addOrganization baseUrl email name password =
         let url = Http.combineUrls baseUrl "/register"
         let request = Http.createJsonPost url {| Email = email; Name = name; Password = password |}
-        Http.sendTextRequest (Some authToken) request
+        Http.sendTextRequest None request
         
     let organizationDetails baseUrl authToken =
         let url = Http.combineUrls baseUrl "/organization"

@@ -61,5 +61,5 @@ module Register =
                 let organizationWithToken = { organization with AccessTokens = [ accessToken ] }
                 let! _ = repo.SaveOrganization organizationWithToken
                 do ctx.SetStatusCode 201
-                return! ctx.WriteStringAsync accessToken.Token
+                return! ctx.WriteJsonAsync accessToken
             } |> Handler.mapErrorToResponse ctx

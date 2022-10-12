@@ -127,13 +127,13 @@ module Program =
                 return Error $"An exception was thrown because: %s{exn.Message}"
         }
         
-    let addOrganization authToken baseUrl (config: Config.AddOrganizationConfig) =
+    let addOrganization baseUrl (config: Config.AddOrganizationConfig) =
         task {
             let email = config.Email |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLine "Please enter your organization's email address:") "Email must not be empty"))
             let name = config.Name |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLine "Please enter your organization's name:") "Name must not be empty"))
             let password = config.Password |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLineHidden "Please enter your password:") "Password must not be empty"))
             
-            let! result = Portal.addOrganization baseUrl authToken email name password
+            let! result = Portal.addOrganization baseUrl email name password
             match result with
             | Http.ApiHttpResponse.Ok token ->
                 printfn "The registration was successful. Do you want to store the access token in your config files? [y/N]"
@@ -178,7 +178,10 @@ module Program =
         
     let tryGetAccessToken () =
         let deserialize s =
-            JsonConvert.DeserializeObject<Organization.AccessToken>(s, DateOnlyJsonConverter())
+            JsonConvert.DeserializeObject<Organization.AccessToken>(
+                s,
+                DateOnlyJsonConverter(), // for ValidThrough
+                FifteenBelow.Json.OptionConverter()) // because the name is a `string option`
         if accessTokenPath |> System.IO.File.Exists then
             accessTokenPath
             |> System.IO.File.ReadAllText
@@ -249,9 +252,7 @@ module Program =
                     config.AccessToken
                     (fun token -> listDevices token baseUrl)
             | Config.Command.AddOrganization addConfig ->
-                ``Run action or fail if no auth token is set``
-                    config.AccessToken
-                    (fun token -> addOrganization token baseUrl addConfig)
+                    addOrganization baseUrl addConfig
             | Config.Command.OrganizationDetails ->
                 ``Run action or fail if no auth token is set``
                     config.AccessToken
