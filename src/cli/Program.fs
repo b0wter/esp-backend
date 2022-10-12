@@ -5,6 +5,8 @@ open Argu
 open System
 open Gerlinde.Shared.Lib
 open Gerlinde.Shared.Lib.Json
+open Newtonsoft.Json
+open FsToolkit.ErrorHandling
 
 module Program =
     let private applicationDataPath =
@@ -24,36 +26,9 @@ module Program =
         (parser, parser.ParseCommandLine(inputs = argv, raiseOnUsage = true))
 
     let login (config: Config.LoginConfig) (baseUrl: string) : Task<Result<unit, string>> =
-        let rec retryIfEmpty (f: unit -> string) (errorText: string) =
-            let result = f ()
-            if result |> String.IsNullOrWhiteSpace then
-                do printfn $"%s{errorText}"
-                retryIfEmpty f errorText
-            else
-                result
-                
-        let fromConsole text =
-            do printfn $"%s{text}"
-            Console.ReadLine ()
-            
-        let fromConsoleHidden text =
-            printfn $"%s{text}"
-            let rec step (aggregator: string) : string =
-                let key = Console.ReadKey true
-                match key.Key with
-                | ConsoleKey.Backspace when aggregator.Length > 0 ->
-                    step (aggregator.Remove(aggregator.Length - 1, 1))
-                | ConsoleKey.Enter ->
-                    aggregator
-                | ConsoleKey.Backspace ->
-                    step aggregator
-                | _ ->
-                    step (aggregator + key.KeyChar.ToString())
-            step String.Empty
-
         task {
-            let email = config.Email |> Option.defaultWith (fun () -> (retryIfEmpty (fun () -> fromConsole "Please enter your email address:") "Email must not be empty"))
-            let password = config.Password |> Option.defaultWith (fun () -> (retryIfEmpty (fun () -> fromConsoleHidden "Please enter your password:") "Password must not be empty"))
+            let email = config.Email |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLine "Please enter your email address:") "Email must not be empty"))
+            let password = config.Password |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLineHidden "Please enter your password:") "Password must not be empty"))
             
             match! Portal.login baseUrl email password with
             | Http.ApiHttpResponse.Ok content ->
@@ -142,12 +117,50 @@ module Program =
             | Http.ApiHttpResponse.Ok list ->
                 let formatted =
                     list
-                    |> Newtonsoft.Json.JsonConvert.DeserializeObject<Device.Device list>
-                    |> (fun x -> Newtonsoft.Json.JsonConvert.SerializeObject(x, Newtonsoft.Json.Formatting.Indented, DateOnlyJsonConverter()))
+                    |> JsonConvert.DeserializeObject<Device.Device list>
+                    |> (fun x -> JsonConvert.SerializeObject(x, Formatting.Indented, DateOnlyJsonConverter()))
                 printfn $"%s{formatted}"
                 return Ok ()
             | Http.ApiHttpResponse.Error (statusCode, body, _) ->
                 return Error $"Could not retrieve device list because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
+    let addOrganization authToken baseUrl (config: Config.AddOrganizationConfig) =
+        task {
+            let email = config.Email |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLine "Please enter your organization's email address:") "Email must not be empty"))
+            let name = config.Name |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLine "Please enter your organization's name:") "Name must not be empty"))
+            let password = config.Password |> Option.defaultWith (fun () -> (Console.retryIfEmpty (fun () -> Console.readLineHidden "Please enter your password:") "Password must not be empty"))
+            
+            let! result = Portal.addOrganization baseUrl authToken email name password
+            match result with
+            | Http.ApiHttpResponse.Ok token ->
+                printfn "The registration was successful. Do you want to store the access token in your config files? [y/N]"
+                printfn "WARNING: by default the token is readable by anyone that can access your '~/.config' folder."
+                printfn "WARNING: this will overwrite any existing access token"
+                
+                match Console.ReadLine() with
+                | "y" | "Y" ->
+                    System.IO.File.WriteAllText (accessTokenPath, token)
+                | _ ->
+                    printfn $"The access token is: %s{token}"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Could not retrieve device list because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
+            | Http.ApiHttpResponse.Exception exn ->
+                return Error $"An exception was thrown because: %s{exn.Message}"
+        }
+        
+    let organizationDetails authToken baseUrl =
+        task {
+            let! result = Portal.organizationDetails baseUrl authToken
+            match result with
+            | Http.ApiHttpResponse.Ok rawOrganization ->
+                printfn $"%s{Linq.JObject.Parse(rawOrganization).ToString(Formatting.Indented)}"
+                return Ok ()
+            | Http.ApiHttpResponse.Error (statusCode, body, _) ->
+                return Error $"Could not retrieve organization details because the portal returned a non-success status code %i{statusCode} with the reason: %s{body}"
             | Http.ApiHttpResponse.Exception exn ->
                 return Error $"An exception was thrown because: %s{exn.Message}"
         }
@@ -165,7 +178,7 @@ module Program =
         
     let tryGetAccessToken () =
         let deserialize s =
-            Newtonsoft.Json.JsonConvert.DeserializeObject<Organization.AccessToken>(s, Json.DateOnlyJsonConverter())
+            JsonConvert.DeserializeObject<Organization.AccessToken>(s, DateOnlyJsonConverter())
         if accessTokenPath |> System.IO.File.Exists then
             accessTokenPath
             |> System.IO.File.ReadAllText
@@ -236,10 +249,14 @@ module Program =
                 ``Run action or fail if no auth token is set``
                     config.AccessToken
                     (fun token -> listDevices token baseUrl)
-            | Config.Command.AddOrganization config ->
-                failwith "not implemented"
-            | Config.Command.ShowOrganization ->
-                failwith "not implemented"
+            | Config.Command.AddOrganization addConfig ->
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> addOrganization token baseUrl addConfig)
+            | Config.Command.OrganizationDetails ->
+                ``Run action or fail if no auth token is set``
+                    config.AccessToken
+                    (fun token -> organizationDetails token baseUrl)
                 
         let result = task.GetAwaiter().GetResult()
         

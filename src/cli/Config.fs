@@ -9,8 +9,9 @@ module Config =
 
     type AddOrganizationConfig =
         { Email: string option
-          Name: string option }
-    let private EmptyAddOrganizationConfig = { Email = None; Name = None }
+          Name: string option
+          Password: string option }
+    let private EmptyAddOrganizationConfig = { Email = None; Name = None; Password = None }
 
     type AddDeviceConfig =
         { MacAddress: string
@@ -26,7 +27,7 @@ module Config =
     type Command =
         // --------------------------
         | AddOrganization of AddOrganizationConfig
-        | ShowOrganization
+        | OrganizationDetails
         // --------------------------
         | AddDevice of AddDeviceConfig
         | DeleteDevice of macAddress:string
@@ -63,6 +64,7 @@ module Config =
         match a with
         | AddOrganizationArgs.Name n -> { config with Name = Some n }
         | AddOrganizationArgs.Email e -> { config with Email = Some e }
+        | AddOrganizationArgs.Password p -> { config with Password = Some p }
 
     let rec applyOrganizationArg (config: Config) (o: OrganizationArgs) : Config =
         match o with
@@ -78,7 +80,7 @@ module Config =
                         args.GetAllResults ()
                         |> List.fold applyAddOrganizationConfig c
                     ) }
-        | OrganizationArgs.Show -> { config with Command = ShowOrganization }
+        | OrganizationArgs.Details -> { config with Command = OrganizationDetails }
         
     let rec applyDeviceArg (config: Config) (d: DeviceArgs) : Config =
         let applyAddDeviceArg (c: AddDeviceConfig) (a: AddDeviceArgs) =

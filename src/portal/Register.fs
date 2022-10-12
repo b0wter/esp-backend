@@ -22,7 +22,7 @@ module Register =
         let validateName (s: string) =
             if String.IsNullOrWhiteSpace(s) then Validation.error "Name must not be empty"
             else if s.Length > 256 then Validation.error "Name must not exceed 255 characters"
-            else Validation.ok s
+            else Validation.ok (Some s)
         let validateEmail (s: string) =
             if s |> Utilities.isValidEmail then Validation.ok s
             else Validation.error "The email address is invalid"
@@ -31,10 +31,10 @@ module Register =
             else
                 let predicates = [
                     (fun chars -> chars |> Array.length >= 12), "Password must not be less than 12 characters"
-                    (fun chars -> chars |> Array.exists Char.IsDigit), "Password does not contain digit"
-                    (fun chars -> chars |> Array.exists Char.IsUpper), "Password does not contain upper case letter"
-                    (fun chars -> chars |> Array.exists Char.IsLower), "Password does not cntain lower case letter"
-                    (fun chars -> chars |> Array.exists (fun c -> Char.IsSymbol(c) || (not <| Char.IsDigit(c) && not <| Char.IsNumber(c)))), "Password does not contain symbol"
+                    (fun chars -> chars |> Array.exists Char.IsDigit), "Password must contain at least one single digit"
+                    (fun chars -> chars |> Array.exists Char.IsUpper), "Password must contain at least one upper case letter"
+                    (fun chars -> chars |> Array.exists Char.IsLower), "Password must contain at least one lower case letter"
+                    (fun chars -> chars |> Array.exists (fun c -> Char.IsSymbol(c) || (not <| Char.IsDigit(c) && not <| Char.IsNumber(c)))), "Password must contain at least one symbol"
                 ]
                 let chars = s.ToCharArray()
                 

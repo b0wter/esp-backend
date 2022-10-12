@@ -15,20 +15,22 @@ module Arguments =
     type AddOrganizationArgs =
         | [<Unique>] Name of string
         | [<Unique>] Email of string
+        | [<Unique>] Password of string
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | Name _ -> "Name of the organization"
                 | Email _ -> "Email address of the organization"
+                | Password _ -> "Password for the organization login"
 
     type OrganizationArgs =
         | [<CliPrefix(CliPrefix.None)>] Add of ParseResults<AddOrganizationArgs>
-        | [<CliPrefix(CliPrefix.None)>] Show
+        | [<CliPrefix(CliPrefix.None)>] Details
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | Add _ -> "Registers a new organization"
-                | Show -> "Show the details of the current organization"
+                | Details -> "Show the details of the current organization"
     
     type AddDeviceArgs =
         | [<MainCommand>] MacAddress of string
