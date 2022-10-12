@@ -203,14 +203,13 @@ module Program =
     let main argv =
         let _, results = parseCommandLineArguments argv
         let config = Config.applyAllArgs results
+        let baseUrl = config.Host
         do ``Make sure application data folder exists`` ()
 
         let config =
             { config with AccessToken = tryGetAccessToken () }
             |> ``Change to invalid token command if token expired``
 
-        let baseUrl = "http://localhost:5000/"
-        
         let ``Run action or fail if no auth token is set`` (accessToken: Organization.AccessToken option) f =
             match accessToken with
             | Some token -> f token.Token

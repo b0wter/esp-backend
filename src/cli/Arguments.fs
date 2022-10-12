@@ -57,6 +57,7 @@ module Arguments =
                 | Details _ -> "Shows the all the details of a device"
 
     type MainArgs =
+        | [<First; ExactlyOnce>] Host of string
         | [<CliPrefix(CliPrefix.None)>] Login of ParseResults<LoginArgs> 
         | [<CliPrefix(CliPrefix.None)>] Logout
         | [<CliPrefix(CliPrefix.None)>] Status
@@ -70,3 +71,4 @@ module Arguments =
                 | Login _ -> "Logs into a device backend"
                 | Logout _ -> "Deletes all local login details"
                 | Status _ -> "Lists various current status infos"
+                | Host _ -> "Url to the portal host (e.g. https://portal.my-esp-backend.com:443)"

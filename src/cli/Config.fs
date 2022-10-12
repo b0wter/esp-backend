@@ -46,6 +46,7 @@ module Config =
             Command: Command
             Verbose: bool
             AccessToken: Organization.AccessToken option
+            Host: string
         }
 
     let EmptyConfig =
@@ -53,6 +54,7 @@ module Config =
             Command = Uninitialized
             Verbose = false
             AccessToken = None
+            Host = System.String.Empty
         }
 
     let applyLoginConfig (config: LoginConfig) (l: LoginArgs) : LoginConfig =
@@ -110,6 +112,8 @@ module Config =
 
     let applyMainArg (config: Config) (m: MainArgs) : Config =
         match m with
+        | MainArgs.Host host ->
+            { config with Host = host }
         | MainArgs.Login args ->
             let c =
                 match config.Command with

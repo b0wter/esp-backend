@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\couchdb\src\lib\CouchDb.Lib.fsproj" />
     <ProjectReference Include="..\authentication\Gerlinde.Shared.Authentication.fsproj" />
     <ProjectReference Include="..\lib\Gerlinde.Shared.Lib.fsproj" />
   </ItemGroup>
