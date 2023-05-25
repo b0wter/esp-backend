@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="b0wter.couchdb" Version="*" />
+    <PackageReference Update="FSharp.Core" Version="7.0.300" />
   </ItemGroup>  
 </Project>

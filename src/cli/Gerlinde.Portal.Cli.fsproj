@@ -17,9 +17,10 @@
   <ItemGroup>
     <PackageReference Include="Argu" Version="6.1.1" />
     <PackageReference Include="FifteenBelow.Json.Core" Version="1.0.0" />
-    <PackageReference Include="FsToolkit.ErrorHandling" Version="2.13.0" />
+    <PackageReference Include="FsToolkit.ErrorHandling" Version="4.6.0" />
     <PackageReference Include="Http.fs" Version="5.4.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Update="FSharp.Core" Version="7.0.300" />
   </ItemGroup>
 
   <ItemGroup>
